@@ -1,20 +1,20 @@
 /*
  * App.js
- * Quiz de áudio em Expo React Native
- * - Tela inicial com animação pulse para incentivar aumento de volume
+ * Quiz de áudio usando expo-speech para TTS
+ * - Tela inicial com animação pulse
  * - Pede permissão de brilho (expo-brightness)
- * - Toca duas perguntas em áudio (Verdadeiro/Falso)
+ * - Duas perguntas lidas em voz de IA (Verdadeiro/Falso)
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Button, StyleSheet, Animated, TouchableOpacity } from 'react-native';
-import { Audio } from 'expo-av';
+import * as Speech from 'expo-speech';
 import * as Brightness from 'expo-brightness';
 
-// Configuração das perguntas: áudio e resposta correta
+// Definição das perguntas com texto e resposta correta
 const questions = [
-  { audio: require('../../assets/q1.mp3'), correct: true },
-  { audio: require('../../assets/q2.mp3'), correct: false },
+  { text: 'Pergunta 1: O céu é azul? Verdadeiro ou falso?', correct: true },
+  { text: 'Pergunta 2: O fogo é frio? Verdadeiro ou falso?', correct: false },
 ];
 
 export default function App() {
@@ -22,9 +22,8 @@ export default function App() {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [feedback, setFeedback] = useState('');
   const speakerAnim = useRef(new Animated.Value(1)).current;
-  const soundRef = useRef();
 
-  // Animação pulse na tela inicial
+  // Animação pulse no ícone
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -34,35 +33,32 @@ export default function App() {
     ).start();
   }, []);
 
-  // Tocar áudio ao iniciar o quiz ou trocar de pergunta
+  // Fala a pergunta ao entrar no quiz ou mudar de pergunta
   useEffect(() => {
-    if (stage === 'quiz') playAudio();
-    return () => { if (soundRef.current) soundRef.current.unloadAsync(); };
+    if (stage === 'quiz') {
+      speakQuestion(questions[questionIndex].text);
+    }
   }, [stage, questionIndex]);
 
-  // Pede permissão de brilho antes de iniciar
+  // Inicia o quiz, pedindo permissão de brilho
   const handleStart = async () => {
     await Brightness.requestPermissionsAsync();
     setStage('quiz');
   };
 
-  // Cria e toca o som da pergunta
-  const playAudio = async () => {
-    if (soundRef.current) {
-      await soundRef.current.unloadAsync();
-      soundRef.current = null;
-    }
-    const { sound } = await Audio.Sound.createAsync(
-      questions[questionIndex].audio,
-      { shouldPlay: true, staysActiveInBackground: true }
-    );
-    soundRef.current = sound;
+  // Função que faz speak via TTS
+  const speakQuestion = (text) => {
+    Speech.speak(text, {
+      language: 'pt-BR',
+      pitch: 1.0,
+      rate: 1.0,
+    });
   };
 
-  // Verifica resposta e mostra feedback
+  // Valida resposta e dá feedback
   const handleAnswer = (answer) => {
-    const correct = questions[questionIndex].correct;
-    setFeedback(answer === correct ? '✅ Correto!' : '❌ Errado!');
+    const isCorrect = questions[questionIndex].correct;
+    setFeedback(answer === isCorrect ? '✅ Correto!' : '❌ Errado!');
     setTimeout(() => {
       setFeedback('');
       if (questionIndex < questions.length - 1) {
@@ -86,12 +82,17 @@ export default function App() {
     );
   }
 
-  // Tela do quiz
+  // Tela de quiz
   if (stage === 'quiz') {
     return (
       <View style={styles.container}>
-        <Text style={styles.questionHeader}>Pergunta {questionIndex + 1} de {questions.length}</Text>
-        <Button title="Ouvir Pergunta" onPress={playAudio} />
+        <Text style={styles.questionHeader}>
+          Pergunta {questionIndex + 1} de {questions.length}
+        </Text>
+        <Button
+          title="Ouvir Pergunta"
+          onPress={() => speakQuestion(questions[questionIndex].text)}
+        />
         <View style={styles.optionsRow}>
           <TouchableOpacity style={styles.optionBtn} onPress={() => handleAnswer(true)}>
             <Text style={styles.optionText}>Verdadeiro</Text>
@@ -109,7 +110,13 @@ export default function App() {
   return (
     <View style={styles.container}>
       <Text style={styles.endText}>Quiz Finalizado!</Text>
-      <Button title="Reiniciar" onPress={() => { setQuestionIndex(0); setStage('init'); }} />
+      <Button
+        title="Reiniciar"
+        onPress={() => {
+          setQuestionIndex(0);
+          setStage('init');
+        }}
+      />
     </View>
   );
 }
